@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Recetario">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f3f5ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111713" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Recetario para 2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: kitchen index cards. Sticky top bar, filter chips, card grid; a recipe opens as a full reading view with tickable ingredients. */
+:root{
+  --bg:#f3f5ef; --surface:#ffffff; --ink:#1c2620; --muted:#5d6b61; --line:#dbe1d6;
+  --herb:#2e6a4c; --herb-soft:#e2ede5; --saffron:#d9962a; --saffron-soft:#f8ead0;
+  --display:"Bricolage Grotesque", "Avenir Next", "Segoe UI", sans-serif;
+  --body:"Atkinson Hyperlegible", "Helvetica Neue", Arial, sans-serif;
+  --mono:"JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#111713; --surface:#1a221d; --ink:#e7ede8; --muted:#9aab9f; --line:#2b3730;
+  --herb:#7cc49d; --herb-soft:#1f3328; --saffron:#f0b555; --saffron-soft:#3a2e17; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#111713; --surface:#1a221d; --ink:#e7ede8; --muted:#9aab9f; --line:#2b3730;
+  --herb:#7cc49d; --herb-soft:#1f3328; --saffron:#f0b555; --saffron-soft:#3a2e17; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.55;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--saffron);outline-offset:2px;border-radius:6px}
+
+/* Header */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:color-mix(in srgb,var(--bg) 92%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;align-items:center;gap:12px;padding-block:12px}
+.brand{font-family:var(--display);font-weight:800;font-size:1.35rem;letter-spacing:-.02em;margin:0;white-space:nowrap;cursor:pointer;background:none;border:0;padding:0}
+.brand span{color:var(--herb)}
+.search{flex:1;min-width:0;position:relative}
+.search input{width:100%;font:inherit;font-size:16px;padding:10px 14px 10px 38px;border:1px solid var(--line);border-radius:999px;background:var(--surface);color:var(--ink)}
+.search svg{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:17px;height:17px;stroke:var(--muted)}
+
+/* Intro */
+.hero{padding-block:28px 8px;display:grid;gap:10px}
+.hero h1{font-family:var(--display);font-weight:800;font-size:clamp(2rem,6vw,3.4rem);line-height:1.02;letter-spacing:-.035em;margin:0;text-wrap:balance;max-width:16ch}
+.hero h1 em{font-style:normal;color:var(--herb)}
+.hero p{margin:0;color:var(--muted);max-width:58ch}
+
+.chips{display:flex;gap:8px;overflow-x:auto;padding-block:16px 6px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:.92rem;cursor:pointer;display:flex;gap:6px;align-items:center}
+.chip .n{font-family:var(--mono);font-size:.75rem;color:var(--muted)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip[aria-pressed="true"] .n{color:inherit;opacity:.7}
+
+/* Sections & cards */
+.section{padding-block:18px 6px}
+.section h2{font-family:var(--display);font-weight:700;font-size:1.3rem;margin:0 0 4px;display:flex;align-items:baseline;gap:10px}
+.section h2 small{font-family:var(--mono);font-size:.75rem;font-weight:500;color:var(--muted)}
+.section .lede{margin:0 0 14px;color:var(--muted);font-size:.95rem}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.card{text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;cursor:pointer;display:grid;grid-template-rows:auto 1fr auto;gap:8px;min-width:0;transition:transform .15s,border-color .15s}
+.card:hover{border-color:var(--herb);transform:translateY(-2px)}
+.card h3{font-family:var(--display);font-weight:700;font-size:1.12rem;line-height:1.2;margin:0;text-wrap:balance}
+.card p{margin:0;color:var(--muted);font-size:.9rem;line-height:1.4}
+.meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.tag{font-family:var(--mono);font-size:.72rem;letter-spacing:.02em;padding:3px 8px;border-radius:6px;background:var(--herb-soft);color:var(--herb)}
+.tag.lvl{background:var(--saffron-soft);color:var(--saffron)}
+.tag.lite{background:transparent;border:1px solid var(--herb);padding:2px 7px}
+.tag.src{background:transparent;border:1px solid var(--line);color:var(--muted);padding:2px 7px}
+.source{margin:18px 0 0;font-size:.88rem;color:var(--muted)}
+.source a{color:var(--herb);font-weight:700}
+.fav{margin-left:auto;color:var(--saffron);font-size:1rem;line-height:1}
+.empty{padding:40px 0;color:var(--muted);text-align:center}
+
+/* Pantry */
+.pantry{overflow-x:auto;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.pantry table{border-collapse:collapse;width:100%;font-size:.93rem}
+.pantry td{padding:10px 14px;border-top:1px solid var(--line);vertical-align:top}
+.pantry tr:first-child td{border-top:0}
+.pantry td:first-child{font-weight:700;width:48%}
+.pantry td:last-child{color:var(--muted)}
+footer{padding-block:32px 40px;color:var(--muted);font-size:.85rem}
+
+/* Recipe view */
+.recipe{padding-block:18px 48px;max-width:760px;margin:0 auto}
+.back{display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:6px 0;color:var(--herb);font-weight:700;cursor:pointer}
+.recipe h1{font-family:var(--display);font-weight:800;font-size:clamp(1.9rem,6vw,2.8rem);line-height:1.05;letter-spacing:-.03em;margin:10px 0 12px;text-wrap:balance}
+.recipe .meta{margin-bottom:16px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:22px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 14px;cursor:pointer;font-size:.93rem;display:inline-flex;gap:7px;align-items:center}
+.btn.primary{background:var(--herb);border-color:var(--herb);color:var(--bg);font-weight:700}
+.btn[aria-pressed="true"]{background:var(--saffron-soft);border-color:var(--saffron);color:var(--ink)}
+.cols{display:grid;grid-template-columns:minmax(0,1fr);gap:26px}
+@media (min-width:760px){.cols{grid-template-columns:minmax(0,.9fr) minmax(0,1.3fr)}}
+.recipe h2{font-family:var(--display);font-size:1.1rem;font-weight:700;margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ing h3{font-size:.95rem;margin:14px 0 6px;color:var(--herb)}
+.ing ul{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.ing label{display:flex;gap:10px;align-items:flex-start;padding:7px 0;border-bottom:1px dashed var(--line);cursor:pointer}
+.ing input{width:20px;height:20px;margin-top:2px;accent-color:var(--herb);flex:none}
+.ing input:checked + span{text-decoration:line-through;color:var(--muted)}
+.steps ol{list-style:none;margin:0;padding:0;display:grid;gap:14px;counter-reset:s}
+.steps li{counter-increment:s;display:grid;grid-template-columns:36px minmax(0,1fr);gap:10px;align-items:start}
+.steps li::before{content:counter(s);font-family:var(--display);font-weight:800;font-size:1.05rem;width:32px;height:32px;border-radius:50%;display:grid;place-items:center;background:var(--herb-soft);color:var(--herb)}
+.steps li{cursor:pointer}
+.steps li.done{color:var(--muted)}
+.steps li.done::before{background:var(--herb);color:var(--bg)}
+.tip{margin-top:22px;padding:14px 16px;border-radius:12px;background:var(--saffron-soft);font-size:.95rem}
+.tip b{color:var(--saffron)}
+.hint{font-size:.82rem;color:var(--muted);margin:8px 0 0}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+@media print{
+  :root{--bg:#fff;--surface:#fff;--ink:#000;--muted:#444;--line:#ccc;--herb:#1f5038;--herb-soft:#e8efe9;--saffron:#8a5a0f;--saffron-soft:#f7efe0}
+  body::before,.top,.back,.actions,.hint,#home{display:none!important}
+  body{font-size:12pt}
+  .recipe{padding:0;max-width:none}
+  .cols{grid-template-columns:.9fr 1.3fr}
+  .ing input{display:none}
+  .ing label{padding:3px 0}
+  .ing input:checked + span{text-decoration:none;color:inherit}
+  .steps li.done{color:inherit}
+}
+</style>
+</head>
+<body>
+
+
+<header class="top">
+  <div class="wrap">
+    <button class="brand" id="brand" type="button">Recetario <span>para 2</span></button>
+    <label class="search" for="q">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Buscar receta o ingrediente" autocomplete="off" aria-label="Buscar receta o ingrediente">
+    </label>
+  </div>
+</header>
+
+<main>
+  <div id="home" class="wrap">
+    <section class="hero">
+      <h1>Lo que vemos en Instagram, <em>pero hecho.</em></h1>
+      <p><span id="count"></span> para dos. Cenas de 20 minutos entre semana, platos de diario y los de finde que dan para un táper. Toca una receta para abrirla y ve tachando ingredientes mientras cocinas.</p>
+    </section>
+    <div class="chips" id="chips" role="group" aria-label="Filtrar por tipo"></div>
+    <div id="list"></div>
+    <section class="section" id="pantrySec">
+      <h2>Despensa básica</h2>
+      <p class="lede">Con esto en casa salen casi todas las recetas. Elegid el domingo dos de diario y una de finde, y haced la compra con eso.</p>
+      <div class="pantry"><table id="pantry"></table></div>
+    </section>
+    <footer>Cantidades para 2 personas. Horno convencional, temperaturas en °C.</footer>
+  </div>
+  <article id="view" class="wrap" hidden></article>
+</main>
+
+<script>
+const CATS = {
+  rapidas:{name:"Cenas rápidas", lede:"20 minutos o menos. Para entre semana."},
+  diario:{name:"De diario", lede:"30 a 45 minutos, casi todo en una bandeja o una sartén."},
+  finde:{name:"De finde", lede:"Más elaboradas, con marinado. Dan para un táper."},
+  salsas:{name:"Salsas y básicos", lede:"Se repiten en varias recetas. Hazlas una vez, úsalas toda la semana."}
+};
+
+const R = [
+{id:"crema-calabaza",cat:"rapidas",light:true,t:"Crema de calabaza y zanahoria",time:"25 min",lvl:"Fácil",blurb:"Base de crema que admite mil variantes. Aguanta 3 días en nevera.",
+ ing:[{items:["500 g de calabaza","2 zanahorias","1 cebolla","1 patata pequeña","600 ml de caldo de verduras o agua","AOVE, sal, pimienta","Una pizca de comino o jengibre"]},{label:"Para servir",items:["Yogur o nata","Pipas tostadas","Un hilo de aceite"]}],
+ steps:["Pocha la cebolla en aceite 5 min.","Añade el resto de verduras troceadas, rehoga 2 min y cubre con el caldo.","Cuece 15-18 min hasta que estén tiernas.","Tritura y ajusta sal y textura con más caldo. Sirve con yogur y pipas."],
+ tip:"Misma base, otras versiones: calabacín y puerro (sin patata, con un quesito), o coliflor con parmesano y nuez moscada."},
+{id:"huevos-parmesano",cat:"rapidas",t:"Tostada de huevos revueltos con parmesano",time:"10 min",lvl:"Fácil",blurb:"Revuelto cremoso a fuego bajo sobre pan de masa madre.",
+ ing:[{items:["4 huevos","20 g de mantequilla","30 g de parmesano rallado","2 rebanadas grandes de pan de masa madre","Cebollino, pimienta negra, escamas de sal"]}],
+ steps:["Bate los huevos con una pizca de sal.","Mantequilla en sartén a fuego bajo. Añade los huevos y remueve sin parar con espátula.","Retira del fuego cuando aún estén algo líquidos y mezcla el parmesano fuera del fuego.","Sirve sobre el pan tostado con cebollino y pimienta."],
+ tip:"Extra: una capa de aguacate debajo, o unas gotas de aceite de trufa por encima."},
+{id:"tostada-jamon",cat:"rapidas",t:"Tostada de jamón con tomate y burrata",time:"10 min",lvl:"Fácil",blurb:"Pan con tomate de verdad, jamón ibérico y burrata rota.",
+ ing:[{items:["2 rebanadas de pan","1 tomate maduro","1 diente de ajo","80 g de jamón ibérico","1 burrata pequeña (opcional)","AOVE, sal en escamas"]}],
+ steps:["Tuesta el pan y frótalo con el ajo.","Ralla el tomate, sálalo y extiéndelo.","Burrata rota por encima, el jamón y un buen chorro de aceite."]},
+{id:"cilbir",cat:"rapidas",light:true,t:"Huevos turcos (çılbır)",time:"15 min",lvl:"Fácil",blurb:"Huevos escalfados sobre yogur con ajo y mantequilla con pimentón.",
+ ing:[{items:["4 huevos","200 g de yogur griego","1 diente de ajo rallado","30 g de mantequilla","1 cdta de pimentón (o chile en escamas)","Eneldo o perejil","Pan para mojar"]}],
+ steps:["Mezcla el yogur con el ajo y sal y repártelo en dos platos.","Escalfa los huevos 3 min en agua con un chorrito de vinagre.","Derrite la mantequilla con el pimentón.","Huevos sobre el yogur, mantequilla roja por encima y hierbas."]},
+{id:"quesadillas",cat:"rapidas",t:"Quesadillas de pollo y queso",time:"15 min",lvl:"Fácil",blurb:"La forma más rápida de aprovechar pollo del día anterior.",
+ ing:[{items:["4 tortillas de trigo","200 g de pollo cocinado desmenuzado","150 g de queso que funda (mozzarella, cheddar)","Cebolleta, jalapeños"]},{label:"Para mojar",items:["Yogur con lima o guacamole rápido"]}],
+ steps:["Rellena media tortilla con queso, pollo, cebolleta y jalapeños, y dóblala.","Sartén sin aceite, 2-3 min por lado hasta que dore y funda.","Corta en triángulos."]},
+
+{id:"pollo-horno",cat:"diario",t:"Pollo al horno con limón, ajo y patatas",time:"50 min",lvl:"Fácil",blurb:"Todo en una bandeja. 10 minutos de trabajo y el horno hace el resto.",
+ ing:[{items:["4-6 contramuslos de pollo con piel y hueso","500 g de patatas baby o en gajos","1 cebolla roja","1 cabeza de ajos","1 limón","Romero o tomillo","1 cdta de pimentón ahumado","AOVE, sal"]}],
+ steps:["Horno a 210 °C.","Mezcla las patatas y la cebolla en gajos con aceite, sal y pimentón en la bandeja.","Encima, el pollo salpimentado con la piel hacia arriba, los ajos partidos, rodajas de limón y hierbas.","Hornea 40-45 min, hasta que la piel cruja. Riega el plato con el jugo de la bandeja."]},
+{id:"salmon-miel-soja",cat:"diario",light:true,t:"Salmón al horno con miel, soja y brócoli",time:"25 min",lvl:"Fácil",blurb:"Glaseado agridulce, brócoli tostado y arroz.",
+ ing:[{items:["2 lomos de salmón","1 brócoli en ramilletes","Arroz para acompañar"]},{label:"Salsa",items:["2 cdas de soja","1 cda de miel","1 ajo rallado","Jengibre rallado","Sésamo"]}],
+ steps:["Horno a 200 °C. Brócoli con aceite y sal en la bandeja, 8 min.","Añade el salmón, píntalo con la salsa y hornea 10-12 min más.","Sésamo y cebolleta por encima. Sirve con arroz."]},
+{id:"orzo-champinones",cat:"diario",t:"Orzo cremoso con champiñones y parmesano",time:"25 min",lvl:"Fácil",blurb:"Como un risotto, en un solo cazo. Más contundente: para un día de capricho.",
+ ing:[{items:["200 g de orzo (pasta con forma de arroz)","250 g de champiñones","1 chalota","2 ajos","600 ml de caldo","40 g de parmesano","20 g de mantequilla","Un puñado de espinacas"]}],
+ steps:["Dora los champiñones a fuego fuerte y resérvalos.","En el mismo cazo, chalota y ajo. Añade el orzo y tuéstalo 1 min.","Añade el caldo poco a poco, removiendo, unos 10-12 min.","Fuera del fuego: mantequilla, parmesano, espinacas y los champiñones."]},
+{id:"fajitas",cat:"diario",t:"Fajitas de pollo en sartén",time:"30 min",lvl:"Fácil",blurb:"Se montan en la mesa. Marinado de 10 minutos.",
+ ing:[{items:["2 pechugas en tiras","2 pimientos de colores","1 cebolla","6 tortillas","Guacamole, yogur o nata agria, cilantro"]},{label:"Especias",items:["1 cdta de comino","1 cdta de pimentón ahumado","½ cdta de ajo en polvo","Chile al gusto","Zumo de 1 lima"]}],
+ steps:["Marina el pollo con las especias, la lima y aceite 10 min.","Sartén muy caliente: pollo 5-6 min. Resérvalo.","Pimiento y cebolla en tiras, 5 min a fuego fuerte. Junta con el pollo.","Monta en la mesa con las tortillas calientes."]},
+{id:"arroz-frito",cat:"diario",t:"Arroz frito con huevo",time:"20 min",lvl:"Fácil",blurb:"Para el arroz del día anterior y lo que quede en la nevera.",
+ ing:[{items:["2 platos de arroz cocido frío","2 huevos","2 cebolletas","1 zanahoria","Guisantes","Proteína opcional: gambas, pollo o bacon","2 cdas de soja","1 cdta de aceite de sésamo","Sriracha"]}],
+ steps:["Wok o sartén muy caliente: proteína y verduras 3-4 min.","Haz hueco, revuelve los huevos y mezcla.","Añade el arroz y saltea 3 min sin parar. Soja y sésamo al final."]},
+
+{id:"butter-chicken",cat:"finde",t:"Butter chicken con arroz basmati",time:"1 h + marinado",lvl:"Media",blurb:"Pollo marinado en yogur, tostado, en salsa de tomate, mantequilla y nata.",
+ ing:[{label:"Marinado",items:["600 g de contramuslo deshuesado en dados","150 g de yogur griego","1 cda de garam masala","1 cdta de cúrcuma","1 cdta de pimentón","1 cdta de sal","3 ajos y 3 cm de jengibre rallados","Zumo de ½ limón"]},{label:"Salsa",items:["50 g de mantequilla","1 cebolla","2 ajos","2 cm de jengibre","1 cda de garam masala","1 cdta de comino","½ cdta de canela","Chile al gusto","400 g de tomate triturado","150 ml de nata","1 cdta de azúcar"]},{label:"Para servir",items:["Cilantro","Arroz basmati","Pan naan"]}],
+ steps:["Marina el pollo con todo lo del marinado. Mínimo 30 min, mejor la noche antes.","Dóralo por tandas en sartén muy caliente, o 12 min al grill del horno, para que coja tostado. Resérvalo.","En la misma sartén, mantequilla y cebolla picada 8 min. Luego ajo, jengibre y especias 1 min.","Añade el tomate y cuece 15 min. Tritura si la quieres lisa.","Añade la nata, el azúcar y el pollo. 10 min a fuego bajo y ajusta de sal.","Termina con un trozo de mantequilla y cilantro."],
+ tip:"Da para 2 y un táper. Al día siguiente está incluso mejor.", link:"arroz-basmati"},
+{id:"gyros",cat:"finde",t:"Gyros de pollo con tzatziki y patatas",time:"1 h + marinado",lvl:"Media",blurb:"Pollo prensado en molde como un mini kebab, cortado fino y dorado.",
+ ing:[{items:["600 g de contramuslo deshuesado"]},{label:"Marinado",items:["100 g de yogur griego","3 ajos","Zumo de 1 limón","2 cdas de AOVE","1 cda de orégano","1 cdta de comino","2 cdtas de pimentón","Sal"]},{label:"Para montar",items:["4 panes de pita","Tzatziki","Tomate","Cebolla roja en juliana","Lechuga","Patatas fritas o al horno (220 °C, 30 min)"]}],
+ steps:["Marina el pollo entero, sin cortar, mínimo 1 h.","Apila los contramuslos bien apretados en un molde de cake.","Hornea a 200 °C 45 min. Reposa 10 min y corta en lonchas finas.","Dora las lonchas 2 min en sartén muy caliente para que queden crujientes.","Pita caliente, tzatziki, pollo, tomate, cebolla y unas patatas dentro, al estilo griego."],
+ tip:"Atajo de diario: corta el pollo en tiras, marina 20 min y hazlo en sartén. Pierdes el corte de kebab, pero está en 25 min.", link:"tzatziki"},
+{id:"smash-burgers",cat:"finde",t:"Smash burgers",time:"30 min",lvl:"Media",blurb:"Carne aplastada fina en sartén muy caliente para que haga costra.",
+ ing:[{items:["300 g de carne picada de vacuno con grasa (80/20), en 4 bolas","4 lonchas de cheddar","2 panes brioche","Cebolla muy fina","Pepinillos"]},{label:"Salsa",items:["2 cdas de mayonesa","1 cda de kétchup","1 cda de mostaza","Pepinillo picado"]}],
+ steps:["Tuesta el pan con mantequilla y resérvalo.","Sartén de hierro al máximo. Pon una bola, cebolla encima y aplástala fina con una espátula sobre papel de horno.","Sal y 2 min sin tocar hasta que haga costra. Dale la vuelta, pon el queso y 1 min más.","Dos carnes por burger, salsa y pepinillos."],
+ tip:"Necesitas una sartén de hierro o una plancha que aguante fuego muy fuerte."},
+{id:"bowl-teriyaki",cat:"finde",t:"Bowl de pollo teriyaki",time:"40 min",lvl:"Fácil-media",blurb:"Pollo glaseado, arroz y verduras crudas por grupos.",
+ ing:[{items:["2 contramuslos o pechugas en dados","Arroz (o arroz de sushi)"]},{label:"Teriyaki",items:["3 cdas de soja","2 cdas de mirin (o 1 de miel)","1 cda de azúcar","1 ajo","Jengibre","1 cdta de maicena disuelta en agua"]},{label:"Para montar",items:["Aguacate","Pepino","Edamame","Zanahoria rallada","Sésamo","Mayo sriracha"]}],
+ steps:["Dora el pollo a fuego fuerte 6-7 min.","Añade la teriyaki y reduce 2-3 min hasta que glasee.","Monta el bowl: arroz, pollo y verduras por grupos. Mayo sriracha y sésamo."], link:"mayo-sriracha"},
+{id:"pasta-vodka",cat:"finde",t:"Pasta alla vodka",time:"30 min",lvl:"Fácil-media",blurb:"La de Gigi Hadid, con el concentrado bien tostado.",
+ ing:[{items:["200 g de rigatoni","1 chalota","2 ajos","2 cdas de concentrado de tomate","30 ml de vodka (opcional)","150 ml de nata","40 g de parmesano","20 g de mantequilla","Chile en escamas","Albahaca"]}],
+ steps:["Mantequilla, chalota y ajo 3 min. Añade el concentrado y tuéstalo 3-4 min hasta que oscurezca.","Vodka y deja evaporar 1 min. Añade la nata y el chile.","Mezcla con la pasta al dente, el parmesano y un poco de agua de cocción hasta que quede cremosa."]},
+
+// ---- Nuevas: cenas rápidas ----
+{id:"pasta-calabacin-limon",cat:"rapidas",light:true,t:"Pasta con calabacín, limón y parmesano",time:"15 min",lvl:"Fácil",blurb:"El calabacín se deshace y hace de salsa. Muy ligera.",
+ ing:[{items:["160 g de pasta corta o espaguetis","2 calabacines medianos","2 ajos","Ralladura y zumo de 1 limón","30 g de parmesano","Albahaca o menta","AOVE, sal, pimienta, chile en escamas"]}],
+ steps:["Pon la pasta a cocer en agua con sal.","Ralla los calabacines por la parte gruesa del rallador.","Sartén con aceite y los ajos laminados 1 min. Añade el calabacín y sal, y cocina 6-8 min a fuego medio-alto hasta que se ablande y se reduzca.","Añade la pasta escurrida con un cazo de agua de cocción, la ralladura y el zumo de limón y el parmesano. Remueve hasta que quede cremosa.","Hierbas, pimienta y un poco de chile por encima."]},
+{id:"tortilla-calabacin",cat:"rapidas",light:true,t:"Tortilla de calabacín y cebolla",time:"20 min",lvl:"Fácil",blurb:"Como la de patatas, pero más ligera y en la mitad de tiempo.",
+ ing:[{items:["2 calabacines","1 cebolla","5 huevos","AOVE, sal"]},{label:"Para acompañar",items:["Ensalada de tomate","Pan con tomate"]}],
+ steps:["Corta el calabacín en medias lunas finas y la cebolla en juliana.","Pócha todo en una sartén con poco aceite y sal, 10-12 min, hasta que esté tierno y sin agua.","Bate los huevos con sal y mezcla con la verdura escurrida.","Cuaja en una sartén de 20 cm a fuego medio 3 min por lado, dándole la vuelta con un plato."],
+ tip:"Escurre bien la verdura antes de mezclarla con el huevo; si suelta agua, la tortilla queda blanda."},
+{id:"shakshuka",cat:"rapidas",light:true,t:"Shakshuka",time:"25 min",lvl:"Fácil",blurb:"Huevos escalfados en salsa de pimiento y tomate especiada. Se come mojando pan.",
+ ing:[{items:["1 cebolla","2 pimientos rojos (o 1 rojo y 1 verde)","2 ajos","400 g de tomate triturado","1 cdta de comino","1 cdta de pimentón dulce","Chile al gusto","4 huevos","Feta o yogur, perejil o cilantro","Pan para mojar"]}],
+ steps:["Pocha la cebolla y el pimiento en tiras con aceite y sal, 8-10 min.","Añade el ajo y las especias 1 min, luego el tomate. Cuece 8-10 min hasta que espese.","Haz 4 huecos y casca un huevo en cada uno. Tapa y cocina a fuego bajo 5-7 min, hasta que la clara cuaje y la yema siga líquida.","Feta desmenuzado y hierbas por encima. A la mesa en la misma sartén."]},
+
+// ---- Nuevas: de diario ----
+{id:"pechuga-plancha",cat:"diario",light:true,t:"Pechuga a la plancha con patatas asadas y ensalada",time:"40 min",lvl:"Fácil",blurb:"La de siempre, pero con un marinado corto para que no quede seca.",
+ ing:[{items:["2 pechugas de pollo","2 cdas de yogur natural","Zumo de ½ limón","1 cdta de pimentón","½ cdta de ajo en polvo","Sal, pimienta"]},{label:"Patatas",items:["400 g de patatas en gajos","1 cda de AOVE","Romero, sal, pimentón"]},{label:"Ensalada",items:["Lechuga","2 tomates","½ cebolla","AOVE, vinagre de Jerez, sal"]}],
+ steps:["Horno a 220 °C. Patatas en gajos con 1 cda de aceite, sal, romero y pimentón en bandeja con papel. Hornea 30-35 min, dándoles la vuelta a mitad.","Abre las pechugas en libro o aplánalas para que tengan grosor uniforme. Marínalas con el yogur, el limón y las especias mientras se hacen las patatas.","Plancha muy caliente, quita el exceso de marinado y haz las pechugas 4-5 min por lado sin moverlas.","Reposa 3 min antes de cortar. Sirve con las patatas y la ensalada aliñada en el momento."],
+ tip:"El yogur ablanda la carne y ayuda a dorar. Con 15 min de marinado ya se nota."},
+{id:"pollo-pisto",cat:"diario",light:true,t:"Pollo con pisto rápido",time:"35 min",lvl:"Fácil",blurb:"Una sartén: pisto de calabacín, pimiento y tomate con dados de pechuga.",
+ ing:[{items:["2 pechugas en dados","1 cebolla","1 pimiento rojo","1 pimiento verde italiano","1 calabacín","1 berenjena pequeña (opcional)","2 ajos","300 g de tomate triturado","1 cdta de pimentón, orégano","AOVE, sal"]}],
+ steps:["Dora el pollo salpimentado en sartén caliente 5 min y resérvalo.","En la misma sartén, cebolla y pimientos en dados 8 min a fuego medio.","Añade calabacín y berenjena en dados y el ajo, 6-8 min más.","Tomate, pimentón y orégano. Cuece 10 min hasta que espese.","Devuelve el pollo 3-4 min para que se termine en la salsa."],
+ tip:"El pisto sobrante sirve de base para la shakshuka del día siguiente."},
+{id:"brochetas-pollo",cat:"diario",light:true,t:"Brochetas de pollo y verduras al horno",time:"40 min",lvl:"Fácil",blurb:"Especias tipo shawarma y tzatziki para mojar.",
+ ing:[{items:["2 pechugas en dados grandes","1 pimiento rojo","1 cebolla roja","1 calabacín","Palillos de brocheta"]},{label:"Especias",items:["2 cdas de yogur","1 cdta de comino","1 cdta de pimentón","½ cdta de cúrcuma","½ cdta de canela","Zumo de ½ limón","1 ajo rallado","Sal"]},{label:"Para servir",items:["Tzatziki","Ensalada o pan de pita"]}],
+ steps:["Marina el pollo con las especias mínimo 15 min. Si los palillos son de madera, remójalos en agua.","Ensarta pollo y verduras alternando.","Hornea a 220 °C 18-20 min, dándoles la vuelta a mitad. Los 2 últimos minutos, con grill.","Sirve con tzatziki."], link:"tzatziki"},
+{id:"pollo-limon-judias",cat:"diario",light:true,t:"Pollo al limón con judías verdes",time:"25 min",lvl:"Fácil",blurb:"Salsa corta de limón, ajo y perejil. Muy rápido.",
+ ing:[{items:["2 pechugas en filetes finos","300 g de judías verdes","2 ajos","Zumo de 1 limón y algo de ralladura","100 ml de caldo de pollo","Perejil","1 cdta de harina (opcional)","AOVE, sal, pimienta"]}],
+ steps:["Cuece las judías 5-6 min en agua con sal y pásalas por agua fría.","Salpimienta los filetes, pásalos por un poco de harina y dóralos 3 min por lado. Resérvalos.","En la misma sartén, ajo laminado 30 s, luego el caldo y el limón. Reduce 2-3 min.","Vuelve el pollo a la sartén con las judías, 2 min, y termina con perejil."]},
+{id:"berenjena-yogur-granada",cat:"diario",light:true,t:"Berenjenas asadas con yogur, ajo y granada",time:"45 min",lvl:"Fácil",blurb:"Estilo Ottolenghi. Cena sola o guarnición de cualquier carne.",
+ ing:[{items:["2 berenjenas","2 cdas de AOVE","Sal"]},{label:"Para servir",items:["150 g de yogur griego","1 ajo rallado","Zumo de ½ limón","½ granada (o un puñado de nueces)","Menta o perejil","Zumaque o pimentón"]}],
+ steps:["Horno a 220 °C. Parte las berenjenas por la mitad a lo largo y haz cortes en rombo en la carne sin llegar a la piel.","Pinta con aceite y sal. Hornea boca arriba 35-40 min, hasta que estén muy tiernas y doradas.","Mezcla el yogur con el ajo, el limón y sal.","Pon el yogur por encima de las berenjenas templadas, con granada, hierbas, zumaque y un hilo de aceite."]},
+{id:"berenjenas-rellenas",cat:"diario",t:"Berenjenas rellenas de carne",time:"1 h",lvl:"Fácil",blurb:"Clásico gratinado. Se puede dejar preparado y hornear al día siguiente.",
+ ing:[{items:["2 berenjenas","250 g de carne picada (ternera o mixta)","1 cebolla","1 ajo","200 g de tomate triturado","Orégano, sal, pimienta","40 g de queso para gratinar"]}],
+ steps:["Horno a 200 °C. Parte las berenjenas a lo largo, haz cortes en la carne, sala y hornea 25 min boca abajo sobre papel.","Vacía la pulpa con una cuchara dejando 1 cm en la piel. Pica la pulpa.","Sofríe la cebolla y el ajo 6 min, añade la carne y dórala. Luego la pulpa, el tomate y el orégano, 10 min.","Rellena las barcas, cubre con queso y gratina 10-12 min."],
+ tip:"Para hacerlas más ligeras, mezcla mitad carne y mitad champiñón picado."},
+{id:"calabacines-rellenos",cat:"diario",light:true,t:"Calabacines rellenos de pollo o atún",time:"45 min",lvl:"Fácil",blurb:"La versión ligera de las berenjenas rellenas.",
+ ing:[{items:["2 calabacines","200 g de pechuga picada o 2 latas de atún al natural","½ cebolla","½ pimiento rojo","150 g de tomate triturado","Orégano, sal","30 g de queso rallado"]}],
+ steps:["Horno a 200 °C. Parte los calabacines a lo largo, vacíalos dejando 1 cm y pica la pulpa.","Hornea las barcas 10 min con sal y un poco de aceite.","Sofríe cebolla y pimiento 6 min, añade la pulpa 4 min y el pollo (o el atún escurrido) y el tomate, 6-8 min.","Rellena, queso por encima y hornea 12-15 min hasta gratinar."]},
+{id:"pimientos-rellenos-horno",cat:"diario",t:"Pimientos rojos rellenos de arroz y carne",time:"1 h",lvl:"Media",blurb:"Al horno, enteros. Dan para táper.",
+ ing:[{items:["4 pimientos rojos medianos","200 g de carne picada","100 g de arroz redondo","1 cebolla","2 ajos","200 g de tomate triturado","1 cdta de pimentón","½ cdta de comino","Perejil","AOVE, sal"]}],
+ steps:["Horno a 190 °C. Corta la tapa de los pimientos y quita las semillas.","Sofríe la cebolla y el ajo 6 min, añade la carne y dórala. Especias, tomate y el arroz crudo, 3 min.","Rellena los pimientos hasta tres cuartos, añade 2 cdas de agua a cada uno y tápalos con su tapa.","Hornea en una fuente con un dedo de agua 50-55 min, hasta que el arroz esté hecho."],
+ tip:"Si el arroz sigue duro al final, tapa la fuente con papel de aluminio y dale 10 min más."},
+{id:"bandeja-verduras-feta",cat:"diario",light:true,t:"Bandeja de verduras asadas con feta",time:"45 min",lvl:"Fácil",blurb:"Berenjena, calabacín, pimiento y cebolla con el feta fundido en el centro.",
+ ing:[{items:["1 berenjena","1 calabacín","1 pimiento rojo","1 pimiento amarillo","1 cebolla roja","10 tomates cherry","1 bloque de feta (200 g)","2 cdas de AOVE","Orégano, pimentón ahumado, sal","Albahaca"]}],
+ steps:["Horno a 210 °C. Corta las verduras en trozos de tamaño parecido.","Mezcla con aceite, sal, orégano y pimentón en una bandeja grande, sin amontonar.","Hornea 20 min. Pon el feta entero en el centro y los cherry alrededor, y hornea 15-20 min más.","Rompe el feta y mézclalo con las verduras. Albahaca por encima."],
+ tip:"Sirve sola, con pasta o como guarnición del solomillo o la pechuga."},
+{id:"escalivada",cat:"diario",light:true,t:"Escalivada con anchoas",time:"1 h",lvl:"Fácil",blurb:"Se hace en cantidad y aguanta 4 días en nevera.",
+ ing:[{items:["2 berenjenas","2 pimientos rojos","2 cebollas","AOVE, sal en escamas","Anchoas o ventresca","Pan tostado"]}],
+ steps:["Horno a 200 °C. Verduras enteras en bandeja, pintadas con aceite. Pincha las berenjenas.","Hornea 45-60 min, girándolas a mitad, hasta que estén muy blandas.","Mételas en un recipiente tapado 15 min para que se pelen solas.","Pela y corta en tiras. Aliña con aceite y sal, y sirve con anchoas sobre pan."]},
+{id:"solomillo-pimientos",cat:"diario",light:true,t:"Solomillo de cerdo con pimientos asados",time:"40 min",lvl:"Fácil",blurb:"Sellado en sartén y terminado al horno sobre los pimientos.",
+ ing:[{items:["1 solomillo de cerdo (400-500 g)","3 pimientos rojos","1 cebolla","2 ajos","Tomillo o romero","1 cdta de mostaza","AOVE, sal, pimienta"]}],
+ steps:["Horno a 200 °C. Pimientos y cebolla en tiras con aceite y sal en una fuente, 20 min.","Salpimienta el solomillo, úntalo con mostaza y séllalo 1 min por cada lado en sartén muy caliente.","Ponlo sobre los pimientos con los ajos y las hierbas, y hornea 15-18 min.","Reposa 5 min tapado y corta en medallones. Riega con el jugo de la fuente."],
+ tip:"Está en su punto cuando el centro queda ligeramente rosado (63 °C con termómetro)."},
+{id:"albondigas-pollo",cat:"diario",t:"Albóndigas de pollo en tomate con calabacín",time:"45 min",lvl:"Fácil",blurb:"Al horno, sin freír. Dan para táper.",
+ ing:[{items:["400 g de pechuga picada","1 huevo","2 cdas de pan rallado","1 ajo rallado","Perejil","Sal, pimienta"]},{label:"Salsa",items:["1 cebolla","1 calabacín en dados","400 g de tomate triturado","Albahaca u orégano"]}],
+ steps:["Horno a 200 °C. Mezcla la carne con el huevo, el pan, el ajo, el perejil y sal. Forma 16-18 bolas con las manos mojadas.","Hornea en bandeja con papel 15 min.","Mientras, pocha la cebolla 5 min, añade el calabacín 5 min y el tomate, 10 min.","Mete las albóndigas en la salsa y cuece 5 min a fuego bajo."],
+ tip:"Con arroz, pasta corta o pan. También se congelan bien en su salsa."},
+{id:"lomo-chimichurri",cat:"diario",t:"Secreto o lomo con chimichurri y verduras a la plancha",time:"30 min",lvl:"Fácil",blurb:"Carne a la plancha y una salsa de hierbas que lo levanta todo.",
+ ing:[{items:["400 g de secreto ibérico o lomo en filetes gruesos","1 calabacín","1 berenjena","1 pimiento rojo","Sal en escamas"]},{label:"Chimichurri",items:["1 manojo de perejil","1 ajo","1 cdta de orégano seco","½ cdta de chile en escamas","1 cda de vinagre de vino","4 cdas de AOVE","Sal"]}],
+ steps:["Pica fino el perejil y el ajo y mezcla con el resto del chimichurri. Mejor 15 min antes.","Corta las verduras en láminas de 1 cm, pinta con aceite y haz a la plancha 3-4 min por lado.","Plancha muy caliente: secreto 3 min por lado, lomo 3-4 min por lado. Reposa 3 min.","Corta la carne en tiras, sal en escamas y chimichurri por encima."]},
+{id:"ternera-wok",cat:"diario",light:true,t:"Ternera salteada con pimiento y brócoli",time:"25 min",lvl:"Fácil",blurb:"Estilo wok, con soja y jengibre. Arroz poco o nada.",
+ ing:[{items:["300 g de ternera en tiras (babilla o tapa)","1 brócoli pequeño en ramilletes","1 pimiento rojo","1 cebolla","2 ajos","2 cm de jengibre"]},{label:"Salsa",items:["3 cdas de soja","1 cda de salsa de ostras (opcional)","1 cdta de miel","1 cdta de maicena","4 cdas de agua"]}],
+ steps:["Mezcla la ternera con 1 cda de soja y la maicena. Mezcla la salsa aparte.","Wok muy caliente: saltea la ternera 2 min por tandas y resérvala.","Saltea el brócoli, el pimiento y la cebolla 4-5 min. Añade ajo y jengibre 30 s.","Vuelve la ternera, añade la salsa y saltea 1 min hasta que brille."]},
+{id:"kofta",cat:"diario",t:"Kofta de ternera con ensalada de tomate y pepino",time:"30 min",lvl:"Fácil",blurb:"Brochetas de carne especiada con ensalada fresca y tzatziki.",
+ ing:[{items:["400 g de carne picada de ternera (o mitad cordero)","½ cebolla rallada y escurrida","1 ajo","Perejil y menta picados","1 cdta de comino","1 cdta de pimentón","½ cdta de canela","Sal, pimienta"]},{label:"Ensalada",items:["2 tomates","1 pepino","½ cebolla roja","Zumo de limón, AOVE, sal"]},{label:"Para servir",items:["Tzatziki","Pan de pita"]}],
+ steps:["Mezcla la carne con la cebolla, el ajo, las hierbas y las especias. Amasa 1 min.","Forma 6-8 cilindros alargados (con o sin palillo).","Hazlos a la plancha o sartén 8-10 min, girándolos para que doren por todos lados.","Sirve con la ensalada en dados aliñada y tzatziki."], link:"tzatziki"},
+{id:"pasta-norma",cat:"diario",t:"Pasta alla Norma",time:"40 min",lvl:"Fácil",blurb:"Berenjena, tomate y queso salado. La versión asada es más ligera.",
+ ing:[{items:["160 g de pasta corta","1 berenjena grande","2 ajos","400 g de tomate triturado","Albahaca","Chile al gusto","40 g de ricotta salata, pecorino o parmesano","AOVE, sal"]}],
+ steps:["Horno a 220 °C. Berenjena en dados con 2 cdas de aceite y sal, 25 min. O frita, si queréis la versión clásica.","Ajo en aceite 1 min, tomate y chile, 15 min a fuego medio.","Añade la berenjena a la salsa y la pasta al dente con algo de agua de cocción.","Albahaca y el queso rallado por encima."]},
+
+// ---- Moussaka ----
+{id:"moussaka",cat:"finde",t:"Moussaka",time:"1 h 30 min",lvl:"Media",src:"https://maiterodon.com/moussaka/",blurb:"Capas de berenjena asada, carne con canela y bechamel. Media receta: da para 2 y un táper.",
+ ing:[{label:"Berenjenas",items:["2 berenjenas medianas","AOVE, sal, pimienta"]},{label:"Carne",items:["400 g de carne picada de ternera o cordero","½ cebolla","1 ajo","½ lata grande de tomate entero pelado","½ cda de tomate concentrado","½ cdta de canela molida","50 ml de vino blanco"]},{label:"Bechamel",items:["60 g de mantequilla","60 g de harina","500 ml de leche entera","Sal, pimienta, nuez moscada"]},{label:"Para gratinar",items:["Parmesano y emmental rallados"]}],
+ steps:["Horno a 200 °C. Berenjenas en rodajas de 1 cm en bandeja con papel, sin amontonar. Aceite, sal y pimienta, y hornea 35-40 min hasta que estén tiernas.","Mientras, dora la carne a fuego fuerte con sal hasta que tueste. Resérvala.","En la misma sartén pocha la cebolla y el ajo. Añade la canela y el concentrado, luego el vino y deja reducir 2 min.","Añade el tomate troceado y la carne, y cocina 15 min hasta que se evapore el líquido.","Bechamel: funde la mantequilla, añade la harina y cocina 2 min con varillas. Incorpora la leche templada poco a poco. Sal, pimienta y nuez moscada.","Monta en una fuente: capa fina de bechamel, berenjena, carne, berenjena, carne y berenjena. Cubre con bechamel y queso.","Hornea a 200 °C 20-30 min, hasta que el queso esté dorado. Reposa 10 min antes de cortar."],
+ tip:"La receta original es para 6-8 personas. Si hacéis la entera, se congela bien en porciones."},
+
+// ---- Recetas de Maite Rodón ----
+{id:"pimientos-piquillo",cat:"finde",t:"Pimientos del piquillo rellenos de carne",time:"40 min",lvl:"Media",src:"https://maiterodon.com/pimientos-rellenos-de-carne/",blurb:"Relleno cremoso tipo croqueta y salsa de los propios pimientos con nata. Media receta.",
+ ing:[{items:["250 g de carne picada de ternera","½ cebolla","1 ajo","½ cda de tomate concentrado","1-2 cdas de harina","250 ml de leche entera","1 bote de pimientos del piquillo (9-10 unidades)","125 ml de nata para cocinar","AOVE, sal, pimienta"]}],
+ steps:["Pocha la cebolla y el ajo picados con sal hasta que estén transparentes. Aparta 1 cda para la salsa.","Añade la carne salpimentada, desmenúzala y dórala. Incorpora el concentrado.","Añade la harina, remueve 1 min y ve echando la leche poco a poco hasta tener una masa espesa, como de croqueta.","Escurre los pimientos y rellénalos con una cucharilla. Guarda 2-3 sin rellenar para la salsa.","Tritura los pimientos reservados con la cebolla apartada y la nata. Ajusta de sal.","Coloca los pimientos en una cazuela baja, cúbrelos con la salsa y calienta 5-10 min a fuego medio-bajo."]},
+{id:"pollo-curry",cat:"diario",t:"Pollo al curry con leche de coco",time:"35 min",lvl:"Fácil",src:"https://maiterodon.com/pollo-al-curry/",blurb:"Más rápido que el butter chicken y sin marinado. Da para 2 y un táper.",
+ ing:[{items:["600 g de contramuslo deshuesado (o pechuga)","1 cebolla","1 ajo grande","1 zanahoria","1 cda de tomate concentrado","400 g de tomate triturado","200 ml de leche de coco (½ lata)","2 cdas de curry en polvo","1 cdta de jengibre en polvo o 1 cm fresco","1 cdta de nuez moscada","AOVE, sal, pimienta"]},{label:"Para servir",items:["Arroz basmati"]}],
+ steps:["Corta el pollo en bocados, salpimiéntalo y dóralo por tandas en sartén caliente. Resérvalo.","En la misma sartén, sofríe la cebolla, la zanahoria en dados y el ajo 5 min.","Haz hueco en el centro y tuesta el concentrado con las especias 1 min.","Añade el tomate y la leche de coco, y cocina 5 min a fuego medio-alto.","Tritura la salsa, devuélvela a la sartén con el pollo y cuece 10-15 min a fuego bajo hasta que espese."], link:"arroz-basmati"},
+{id:"quiche-calabacin",cat:"finde",t:"Quiche de calabacín y queso de cabra",time:"1 h 20 min",lvl:"Media",src:"https://maiterodon.com/quiche-calabacin-queso-cabra/",blurb:"Masa quebrada casera. Da para 2 cenas y se come fría o caliente.",
+ ing:[{label:"Masa",items:["250 g de harina","125 g de mantequilla fría en dados","60 ml de agua fría","1 cdta de sal"]},{label:"Relleno",items:["1 calabacín mediano","1 cebolla","3 huevos","200 ml de nata para cocinar","Un puñado de emmental rallado","120 g de queso de cabra","Sal, pimienta"]}],
+ steps:["Horno a 180 °C. Mezcla la harina con la sal y frota la mantequilla con la punta de los dedos hasta que parezcan migas gruesas.","Añade el agua y junta en una bola sin amasar de más. Nevera 15-20 min.","Estira a 2-3 mm, forra el molde, pincha la base, cubre con papel y peso (legumbres) y hornea en blanco 15 min.","Pocha la cebolla y el calabacín en dados con sal hasta que estén tiernos. Deja templar.","Bate los huevos con la nata y el emmental. Añade el queso de cabra en trozos y la verdura. Salpimienta.","Vierte sobre la base y hornea 35-40 min a 180 °C, hasta que cuaje y se dore."],
+ tip:"Si tenéis Thermomix, la masa sale en 20 s a velocidad 6 con todo frío; añade el agua al final."},
+{id:"crunchy-wrap",cat:"diario",t:"Crunchy wrap de pollo y boniato",time:"40 min",lvl:"Media",src:"https://maiterodon.com/crunchy-wrap/",blurb:"Wrap plegado en hexágono, con una tortilla crujiente dentro.",
+ ing:[{items:["1 boniato pequeño en dados","200 g de pollo asado desmenuzado","3 hojas de lechuga","¼ de cebolla dulce","Queso rallado","2 tortillas de maíz pequeñas","2 tortillas de trigo grandes","2 tortillas de trigo pequeñas","Pimentón, ajo en polvo, sal, AOVE"]},{label:"Salsa",items:["2 cdas de yogur","Sal, pimienta, ajo en polvo, orégano"]}],
+ steps:["Horno a 180 °C. Boniato con aceite, sal, pimentón y ajo en polvo, 25-30 min.","Pica la lechuga y la cebolla, desmenuza el pollo y mezcla la salsa de yogur.","Pinta las tortillas de maíz con aceite y hornéalas a 200 °C 10 min hasta que crujan.","Sobre una tortilla grande: queso, pollo, boniato, queso, tortilla crujiente, salsa, lechuga y cebolla, y más queso.","Tapa con una tortilla pequeña y dobla los bordes hacia dentro formando un hexágono.","Tuesta en plancha caliente por los dos lados, empezando por el lado de los pliegues."]},
+{id:"bibimbap",cat:"finde",t:"Bibimbap",time:"50 min",lvl:"Media",src:"https://maiterodon.com/bibimbap/",blurb:"Bol coreano: arroz, ternera marinada, verduras salteadas por separado y huevo.",
+ ing:[{items:["1 vaso de arroz","1 filete de ternera en tiras","1 zanahoria","½ calabacín","Un puñado de shiitake","Un puñado de espinacas","2 cdas de brotes de soja","2 huevos","Sésamo"]},{label:"Marinado",items:["1 cda de soja","1 cda de aceite de sésamo","1 cda de miel","1 ajo pequeño rallado"]},{label:"Salsa",items:["1 cda de gochujang","1 cda de aceite de sésamo","1 cda de azúcar","1 cda de vinagre","1 cda de soja","1 ajo pequeño rallado"]}],
+ steps:["Marina la ternera mientras preparas lo demás.","Lava el arroz 3-4 veces. Cuécelo con 1 vaso de agua: cuando hierva, tapa, fuego bajo 12 min y reposa 15 min tapado.","Corta zanahoria y calabacín en juliana y mezcla la salsa.","Saltea cada verdura por separado a fuego fuerte con sal, hasta que quede algo crujiente. Luego la ternera.","Fríe un huevo por persona, tapando la sartén para que cuaje por arriba.","En un bol hondo: arroz, verduras y ternera en montoncitos alrededor y el huevo en el centro. Sésamo y una cucharada de salsa; añade más al gusto, porque pica."],
+ tip:"El gochujang se encuentra en supermercados asiáticos o en la sección internacional."},
+{id:"puerros-anchoas",cat:"diario",light:true,t:"Puerros asados con salsa de anchoas",time:"50 min",lvl:"Fácil",src:"https://maiterodon.com/puerros-asados/",blurb:"Puerros al horno sobre yogur con anchoas, pimiento asado y frutos secos.",
+ ing:[{items:["3-4 puerros gruesos","150-200 g de yogur griego","6-8 anchoas","Pimiento asado picado","Frutos secos picados","AOVE, sal, pimienta"]}],
+ steps:["Lava bien los puerros. Córtalos en trozos de 10 cm y ábrelos por la mitad a lo largo.","Ponlos boca abajo en una fuente, con sal, pimienta y aceite.","Hornea a 180 °C 35-40 min, hasta que estén tiernos.","Tritura el yogur con las anchoas, pimienta y un hilo de aceite.","Quita la capa exterior más seca de los puerros. Sirve sobre la salsa con pimiento y frutos secos por encima."]},
+{id:"fideos-pollo-verduras",cat:"rapidas",t:"Fideos con pollo y verduras",time:"25 min",lvl:"Fácil",src:"https://maiterodon.com/noodles-pollo-verduras/",blurb:"Salteado de noodles con berenjena, calabacín y champiñón, y huevo frito encima.",
+ ing:[{items:["½ calabacín","½ berenjena","Un puñado de champiñones","1 pechuga de pollo","200 g de noodles de trigo (peso en seco)","2 huevos (opcional)","Un chorrito de soja","Sriracha al gusto","AOVE, sal, pimienta"]}],
+ steps:["Cuece los noodles según el paquete y escúrrelos.","Corta las verduras y el pollo en trozos pequeños. Salpimienta el pollo.","Sartén grande muy caliente con un poco de aceite: saltea las verduras con sal a fuego medio-alto hasta que casi estén.","Añade el pollo y cocínalo con las verduras.","Incorpora los noodles, la soja y la sriracha y mezcla bien.","Sirve con un huevo frito encima y más sriracha."]},
+{id:"empanada-bonito",cat:"finde",t:"Empanada gallega de bonito",time:"1 h 30 min",lvl:"Media",src:"https://maiterodon.com/empanada-gallega-de-bonito/",blurb:"Masa con el jugo del relleno y bonito en conserva. Da para varios días.",
+ ing:[{label:"Relleno",items:["3 cebollas grandes","1 pimiento verde italiano","1 pimiento rojo pequeño","1 ajo","200 ml de tomate triturado","1 cdta de pimentón","500 g de bonito en conserva, escurrido","Sal"]},{label:"Masa",items:["750 g de harina","225 ml de aceite de oliva suave","225 ml de líquido (el jugo del relleno más agua)","2 huevos","10 g de sal","1 huevo batido para pintar"]}],
+ steps:["Pocha la cebolla y los pimientos en dados con sal unos 5 min. Añade el tomate y reduce 2-5 min. Pimentón y ajusta de sal.","Deja enfriar el relleno en un colador sobre un bol. Guarda el líquido que suelte.","Completa ese líquido con agua hasta 225 ml. Mézclalo con la harina, el aceite, los huevos y la sal hasta formar una masa lisa. Reposa 10 min.","Horno a 200 °C. Divide la masa en dos partes, una algo mayor. Estira la grande sobre papel de horno.","Extiende el relleno dejando un borde, y el bonito por encima en capa uniforme.","Cubre con la otra mitad, recorta y sella los bordes doblando. Haz un agujero en el centro y pinta con huevo.","Hornea en la parte baja del horno 35-45 min, hasta que esté dorada."],
+ tip:"Con Thermomix, la masa sale amasando 3 min en modo espiga. La empanada aguanta 3 días y se congela por porciones."},
+
+// ---- Pizza Thermomix ----
+{id:"pizza-thermomix",cat:"finde",t:"Masa de pizza en Thermomix (2 pizzas, 2 días)",time:"20 min + levado",lvl:"Fácil",blurb:"Una masa, dos cenas: una pizza hoy y la otra bola para otro día.",
+ ing:[{label:"Masa (2 pizzas medianas)",items:["210 g de agua","20 g de AOVE","15 g de levadura fresca (o 5 g de seca)","400 g de harina de fuerza","1 cdta de sal"]},{label:"Ideas de cobertura",items:["Margarita: tomate triturado con sal y orégano, mozzarella, albahaca","Verduras: bandeja de verduras asadas y feta o mozzarella","Jamón y rúcula: jamón ibérico y rúcula al salir del horno","Pollo: pollo sobrante, cebolla roja, pimiento y salsa barbacoa o pesto"]}],
+ steps:["Agua, aceite y levadura en el vaso: 2 min / 37 °C / vel 1.","Añade la harina y la sal: 3 min / modo espiga.","Saca la masa, divídela en dos bolas y deja levar tapadas 1 h, hasta que doblen.","Bola de hoy: horno al máximo (250 °C) con la bandeja dentro. Estira, cubre y hornea 10-12 min en la parte baja.","Bola de otro día: en un táper aceitado en la nevera hasta 3 días (gana sabor), o en el congelador hasta 3 meses.","Para usar la de nevera, sácala 1 h antes. La congelada, a la nevera la noche anterior."],
+ tip:"Si usáis una masa de Cookidoo distinta, sigue valiendo el plan: dividir en dos bolas y guardar una."},
+
+{id:"tzatziki",cat:"salsas",t:"Tzatziki",time:"10 min",lvl:"Fácil",blurb:"Para gyros, pollo al horno y patatas. Aguanta 3 días.",
+ ing:[{items:["½ pepino rallado y bien escurrido","200 g de yogur griego","1 ajo rallado","Zumo de ½ limón","Eneldo o menta","AOVE, sal"]}],
+ steps:["Ralla el pepino y escúrrelo apretando con las manos o un trapo.","Mezcla todo.","Mejor tras 30 min en nevera."]},
+{id:"arroz-basmati",cat:"salsas",t:"Arroz basmati suelto",time:"25 min",lvl:"Fácil",blurb:"El acompañamiento del butter chicken y los bowls.",
+ ing:[{items:["150 g de arroz basmati","Agua (1,5 veces el volumen del arroz)","Sal","Opcional: 1 clavo o 2 vainas de cardamomo"]}],
+ steps:["Lava el arroz hasta que el agua salga clara.","Cuécelo con el agua y la sal, tapado, 12 min a fuego mínimo.","Reposa 10 min tapado y suéltalo con un tenedor."]},
+{id:"mayo-sriracha",cat:"salsas",t:"Mayo sriracha",time:"2 min",lvl:"Fácil",blurb:"Para bowls, burgers, patatas y quesadillas.",
+ ing:[{items:["3 cdas de mayonesa","1-2 cdas de sriracha","Unas gotas de lima"]}],
+ steps:["Mezcla y ajusta el picante."]},
+{id:"salsa-yogur-lima",cat:"salsas",t:"Salsa de yogur, lima y cilantro",time:"5 min",lvl:"Fácil",blurb:"Para fajitas, quesadillas y salmón.",
+ ing:[{items:["150 g de yogur griego","Zumo de 1 lima","Cilantro picado","Sal","Una pizca de comino"]}],
+ steps:["Mezcla todo y deja reposar 10 min en nevera."]}
+];
+
+const PANTRY = [
+ ["Yogur griego natural","Tzatziki, marinadas, salsas"],
+ ["Garam masala, comino, pimentón dulce y ahumado","Butter chicken, gyros, pollo al horno"],
+ ["Ajo, cebolla, limones, jengibre","Base de casi todo"],
+ ["Tomate triturado y nata para cocinar","Butter chicken, pastas"],
+ ["Parmesano en bloque","Huevos, cremas, pastas"],
+ ["Arroz basmati, pasta, pan de masa madre","Acompañamientos"],
+ ["Soja, miel, sriracha","Bowls y salteados"],
+ ["Huevos, mantequilla, AOVE","Siempre"]
+];
+
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch(e){} }
+};
+let favs = new Set(store.get("rec-favs", []));
+let filter = "todas";
+const canPrint = /github\.io$|^localhost$|^127\.0\.0\.1$/.test(location.hostname) || location.protocol === "file:";
+
+function norm(s){ return s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,""); }
+function matches(r, q){
+  if(!q) return true;
+  const hay = norm([r.t, r.blurb, ...r.ing.flatMap(g => g.items)].join(" "));
+  return norm(q).split(/\s+/).every(w => hay.includes(w));
+}
+
+function renderChips(){
+  const counts = {todas:R.length, favoritas:favs.size, ligeras:R.filter(r=>r.light).length, maite:R.filter(r=>r.src).length};
+  for(const r of R) counts[r.cat] = (counts[r.cat]||0)+1;
+  const opts = [["todas","Todas"], ...Object.entries(CATS).map(([k,v]) => [k, v.name]), ["ligeras","Ligeras"], ["maite","De Maite Rodón"], ["favoritas","★ Favoritas"]];
+  $("#chips").innerHTML = opts.map(([k,n]) =>
+    `<button class="chip" type="button" data-f="${k}" aria-pressed="${filter===k}">${n}<span class="n">${counts[k]||0}</span></button>`).join("");
+}
+
+function card(r){
+  return `<button class="card" type="button" data-id="${r.id}">
+    <h3>${esc(r.t)}</h3><p>${esc(r.blurb)}</p>
+    <div class="meta"><span class="tag">${esc(r.time)}</span><span class="tag lvl">${esc(r.lvl)}</span>${r.light?'<span class="tag lite">Ligera</span>':""}${r.src?'<span class="tag src">Maite Rodón</span>':""}${favs.has(r.id)?'<span class="fav" aria-label="Favorita">★</span>':""}</div>
+  </button>`;
+}
+
+function renderList(){
+  const q = $("#q").value.trim();
+  let html = "";
+  const special = ["todas","favoritas","ligeras","maite"].includes(filter);
+  const cats = special ? Object.keys(CATS) : [filter];
+  const pass = r => filter==="favoritas" ? favs.has(r.id) : filter==="ligeras" ? !!r.light : filter==="maite" ? !!r.src : true;
+  for(const c of cats){
+    const items = R.filter(r => r.cat===c && matches(r,q) && pass(r));
+    if(!items.length) continue;
+    html += `<section class="section"><h2>${CATS[c].name} <small>${items.length}</small></h2><p class="lede">${CATS[c].lede}</p><div class="grid">${items.map(card).join("")}</div></section>`;
+  }
+  if(!html) html = filter==="favoritas" && !q
+    ? `<p class="empty">Aún no hay favoritas. Abre una receta y márcala con la estrella.</p>`
+    : `<p class="empty">Nada coincide con “${esc(q)}”. Prueba con un ingrediente, como “yogur” o “pollo”.</p>`;
+  $("#list").innerHTML = html;
+  $("#pantrySec").hidden = !!q || filter!=="todas";
+}
+
+function renderPantry(){
+  $("#pantry").innerHTML = PANTRY.map(([a,b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join("");
+}
+
+let wakeLock = null, wantWake = false;
+async function toggleWake(btn){
+  try{
+    if(wakeLock){ wantWake = false; await wakeLock.release(); wakeLock = null; }
+    else if("wakeLock" in navigator){ wantWake = true; wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; syncWake(); }); }
+    else { btn.textContent = "No disponible en este navegador"; return; }
+  }catch(e){ wakeLock = null; btn.textContent = "No se pudo mantener la pantalla"; return; }
+  syncWake();
+}
+function syncWake(){
+  const b = $("#wake"); if(!b) return;
+  b.setAttribute("aria-pressed", !!wakeLock);
+  b.textContent = wakeLock ? "Pantalla encendida" : "Mantener pantalla encendida";
+}
+
+function showRecipe(id){
+  const r = R.find(x => x.id===id);
+  if(!r){ showHome(); return; }
+  const checked = new Set(store.get("rec-check-"+r.id, []));
+  const link = r.link ? R.find(x => x.id===r.link) : null;
+  let i = 0;
+  $("#view").innerHTML = `<div class="recipe">
+    <button class="back" type="button" id="back">← Todas las recetas</button>
+    <h1>${esc(r.t)}</h1>
+    <div class="meta"><span class="tag">${esc(r.time)}</span><span class="tag lvl">${esc(r.lvl)}</span><span class="tag">2 personas</span>${r.light?'<span class="tag lite">Ligera</span>':""}<span class="tag">${CATS[r.cat].name}</span></div>
+    <div class="actions">
+      <button class="btn" type="button" id="favBtn" aria-pressed="${favs.has(r.id)}">${favs.has(r.id)?"★ Favorita":"☆ Añadir a favoritas"}</button>
+      <button class="btn" type="button" id="wake" aria-pressed="false">Mantener pantalla encendida</button>
+      ${canPrint?'<button class="btn primary" type="button" id="pdf">Exportar PDF</button>':""}
+      <button class="btn" type="button" id="reset">Desmarcar todo</button>
+    </div>
+    <div class="cols">
+      <section class="ing"><h2>Ingredientes</h2>
+        ${r.ing.map(g => `${g.label?`<h3>${esc(g.label)}</h3>`:""}<ul>${g.items.map(it => { const k=i++; return `<li><label><input type="checkbox" id="i-${r.id}-${k}" data-k="${k}" ${checked.has(k)?"checked":""}><span>${esc(it)}</span></label></li>`; }).join("")}</ul>`).join("")}
+      </section>
+      <section class="steps"><h2>Pasos</h2>
+        <ol>${r.steps.map((s,n) => `<li data-s="${n}" class="${checked.has("s"+n)?"done":""}">${esc(s)}</li>`).join("")}</ol>
+        <p class="hint">Toca un paso para marcarlo como hecho.</p>
+        ${r.tip?`<div class="tip"><b>Truco.</b> ${esc(r.tip)}</div>`:""}
+        ${r.src?`<p class="source">Receta original de Maite Rodón · <a href="${r.src}" target="_blank" rel="noopener">verla en maiterodon.com</a></p>`:""}
+        ${link?`<div class="tip"><b>Va con:</b> <a href="#${link.id}" style="color:inherit">${esc(link.t)}</a></div>`:""}
+      </section>
+    </div>
+  </div>`;
+  $("#home").hidden = true; $("#view").hidden = false;
+  document.title = r.t + " · Recetario para 2";
+  window.scrollTo(0,0);
+
+  const save = () => store.set("rec-check-"+r.id, [...checked]);
+  $("#view").querySelectorAll(".ing input").forEach(cb => cb.addEventListener("change", () => {
+    const k = +cb.dataset.k; cb.checked ? checked.add(k) : checked.delete(k); save();
+  }));
+  $("#view").querySelectorAll(".steps li").forEach(li => li.addEventListener("click", () => {
+    const k = "s"+li.dataset.s; li.classList.toggle("done"); li.classList.contains("done") ? checked.add(k) : checked.delete(k); save();
+  }));
+  $("#back").onclick = () => { location.hash = ""; showHome(); };
+  $("#favBtn").onclick = e => {
+    favs.has(r.id) ? favs.delete(r.id) : favs.add(r.id); store.set("rec-favs", [...favs]);
+    e.currentTarget.setAttribute("aria-pressed", favs.has(r.id));
+    e.currentTarget.textContent = favs.has(r.id) ? "★ Favorita" : "☆ Añadir a favoritas";
+  };
+  $("#wake").onclick = e => toggleWake(e.currentTarget);
+  $("#reset").onclick = () => { checked.clear(); save(); showRecipe(r.id); };
+  if(canPrint) $("#pdf").onclick = () => window.print();
+  syncWake();
+}
+
+function showHome(){
+  $("#view").hidden = true; $("#home").hidden = false;
+  document.title = "Recetario para 2";
+  renderChips(); renderList();
+}
+
+function route(){
+  const id = location.hash.slice(1);
+  id ? showRecipe(id) : showHome();
+}
+
+$("#chips").addEventListener("click", e => {
+  const b = e.target.closest(".chip"); if(!b) return;
+  filter = b.dataset.f; renderChips(); renderList();
+});
+$("#list").addEventListener("click", e => {
+  const c = e.target.closest(".card"); if(!c) return;
+  location.hash = c.dataset.id; showRecipe(c.dataset.id);
+});
+$("#q").addEventListener("input", () => { if(!$("#view").hidden){ location.hash=""; } showHome(); });
+$("#brand").addEventListener("click", () => { location.hash = ""; $("#q").value=""; filter="todas"; showHome(); });
+window.addEventListener("hashchange", route);
+document.addEventListener("visibilitychange", async () => {
+  if(document.visibilityState==="visible" && wantWake && !wakeLock){ try{ wakeLock = await navigator.wakeLock.request("screen"); wakeLock.addEventListener("release", () => { wakeLock = null; syncWake(); }); syncWake(); }catch(e){} }
+});
+
+renderPantry();
+$("#count").textContent = `${R.filter(r=>r.cat!=="salsas").length} recetas y ${R.filter(r=>r.cat==="salsas").length} salsas`;
+route();
+</script>
+
+</body>
+</html>
