@@ -1,7 +1,7 @@
-// Rellena con los datos de tu proyecto de Supabase (Project Settings → API).
-// La "anon key" es pública por diseño: la seguridad la ponen las reglas RLS del script SQL.
+// Datos públicos del proyecto de Supabase (Project Settings → Data API / API Keys).
+// La publishable key está pensada para ir en la web: la seguridad la ponen las reglas RLS de supabase/setup.sql.
 // Si se dejan vacíos, la web funciona en modo local (sin cuentas, favoritas en el navegador).
 window.RECETARIO_CONFIG = {
-  url: "",
-  anonKey: ""
+  url: "https://ucwtnjfqckofsuljzkvf.supabase.co",
+  anonKey: "sb_publishable_SdWXRjblVM47mrguzsTdzw_LuHtxJmN"
 };
